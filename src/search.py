@@ -14,7 +14,7 @@ class SearXNGSearch:
         self.backoff_factor = backoff_factor
         self.session = requests.Session()
 
-    def search(self, query, num_results=20):
+    def search(self, query, num_results=10):
         params = {
             "q": query,
             "format": "json",
@@ -44,11 +44,11 @@ class SearXNGSearch:
 searx = SearXNGSearch()
 
 
-def perform_search(query):
+def perform_search(query, num_results=20):
     """
     Perform a search using SearXNG and return the results.
     """
-    results = searx.search(query)
+    results = searx.search(query, num_results)
     return results
 
 
