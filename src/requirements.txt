@@ -1,0 +1,8 @@
+streamlit
+requests
+python-dotenv
+spacy
+sentence-transformers
+faiss-cpu
+umap-learn
+plotly
