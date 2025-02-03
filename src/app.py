@@ -4,7 +4,7 @@ from search import perform_search
 from entity_extraction import extract_entities, get_top_entities
 from vector_store import store_entities, query_vector_store
 from llm_processor import process_with_llm
-from entity_visualization import create_3d_latent_space
+from advanced_visualizations import create_visualizations
 from dotenv import load_dotenv
 import warnings
 
@@ -53,9 +53,11 @@ if search_button and query:
         relevant_info = query_vector_store(query)
         final_output = process_with_llm(query, relevant_info)
 
-        # Get top 5 entities and create 3D visualization
-        top_entities = get_top_entities(entities, n=5)
-        fig_3d = create_3d_latent_space(top_entities)
+        # Get top entities and create visualizations
+        top_entities = get_top_entities(
+            entities, n=10
+        )  # Increased to 10 for better visualizations
+        scatter_3d, network_graph, dendro = create_visualizations(top_entities)
 
     # Display results in tabs
     tab1, tab2, tab3 = st.tabs(
@@ -65,7 +67,6 @@ if search_button and query:
     with tab1:
         st.markdown("<div class='output-container'>", unsafe_allow_html=True)
         if final_output:
-            st.subheader("Structured Output")
             st.write(final_output)
         else:
             st.write("No structured output available.")
@@ -74,17 +75,18 @@ if search_button and query:
     with tab2:
         col1, col2 = st.columns([2, 1])
         with col1:
-            st.plotly_chart(fig_3d, use_container_width=True)
+            st.plotly_chart(scatter_3d, use_container_width=True)
+            st.plotly_chart(network_graph, use_container_width=True)
         with col2:
             st.subheader("Entity Statistics")
             stats_df = pd.DataFrame(top_entities)
-            stats_df.columns = ['Entity', 'Type', 'Frequency']
+            stats_df.columns = ["Entity", "Type", "Frequency"]
             st.table(stats_df)
-
+            st.plotly_chart(dendro, use_container_width=True)
 
     with tab3:
         st.markdown("<div class='output-container'>", unsafe_allow_html=True)
-        for result in search_results[:5]:
+        for result in search_results:
             st.subheader(result.get("title", "No Title"))
             st.write(result.get("url", "No URL"))
             st.write(result.get("content", "No Content"))

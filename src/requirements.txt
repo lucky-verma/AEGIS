@@ -6,3 +6,7 @@ sentence-transformers
 faiss-cpu
 umap-learn
 plotly
+networkx
+scipy
+streamlit-agraph
+streamlit-echarts
