@@ -55,9 +55,9 @@ def process_query(query):
         status_text.text(f"{description}... ({progress}%)")
 
         if i == 0:
-            results["search_results"] = func(query)
+            results["search_crawl4ai_results"] = func(query)
         elif i == 1:
-            results["entities"] = func(results["search_results"])
+            results["entities"] = func(results["search_crawl4ai_results"])
         elif i == 2:
             func(results["entities"])
         elif i == 3:
@@ -80,9 +80,7 @@ def process_query(query):
 if search_button and query:
     results = process_query(query)
 
-    tab1, tab2 = st.tabs(
-        ["Structured Output", "3D Visualization"]
-    )
+    tab1, tab2 = st.tabs(["Structured Output", "3D Visualization"])
 
     with tab1:
         st.markdown("<div class='output-container'>", unsafe_allow_html=True)
@@ -106,16 +104,13 @@ if search_button and query:
             st.plotly_chart(results["visualizations"][2], use_container_width=True)
 
     st.sidebar.header("Search Results")
-    for result in results["search_results"]:
-        st.sidebar.subheader(result.get("title", "No Title"))
-        st.sidebar.markdown(
-            f"[{result.get('url', 'No URL')}]({result.get('url', '#')})",
-            unsafe_allow_html=True,
-        )
-        st.sidebar.markdown(
-            result.get("content", "No Content")[:500] + "...",
-            unsafe_allow_html=True,
-        )
+    for result in results["search_crawl4ai_results"]:
+        title = result["searxng"].get("title", "No Title")
+        url = result["searxng"].get("url", "")
+        content = result["searxng"].get("content", "")
+        st.sidebar.subheader(title)
+        st.sidebar.write(f"[{url}]({url})")
+        st.sidebar.write(content)
         st.sidebar.markdown("---")
 
 st.sidebar.header("About")
