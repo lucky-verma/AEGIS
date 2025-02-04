@@ -4,9 +4,7 @@ python-dotenv
 spacy
 sentence-transformers
 faiss-cpu
-umap-learn
 plotly
 networkx
 scipy
-streamlit-agraph
-streamlit-echarts
+crawl4ai
