@@ -90,3 +90,11 @@ The 3D latent space chart provides:
 - Entity frequency
 - Color-coded importance
 - Interactive exploration
+
+## Things to do
+
+1. Add a reasoning layer to generate multi search staregies
+2. Create & attach a search agent (langchain)
+3. Pass the search results to Crawl4AI
+4. Add a RAG layer (faiss OR HNSW)
+5. Finally process all the informatio with LLM
