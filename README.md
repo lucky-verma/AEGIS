@@ -14,6 +14,7 @@ This advanced AI-powered Entity Search and Analysis application leverages cuttin
 ## 🛠 Technologies Used
 
 - **Web Search**: SearXNG
+- **Crawler**: Crawl4AI
 - **Entity Extraction**: SpaCy
 - **Embedding**: Sentence Transformers
 - **Dimensionality Reduction**: UMAP
@@ -38,7 +39,7 @@ source venv/bin/activate  # On Windows use `venv\Scripts\activate`
 pip install -r requirements.txt
 
 # Download SpaCy model
-python -m spacy download en_core_web_sm
+python -m spacy download en_core_web_trf
 ```
 
 ## 🔧 Configuration
@@ -56,7 +57,19 @@ VECTOR_DIMENSION=384
 ## 🚀 Running the Application
 
 ```bash
+# Start the search service
+cd searxng_docker
+docker compose up -d
+```
+
+```bash
+# Start the crawler service
 cd src
+python web_scraper_service.py
+```
+
+```bash
+# Run the Streamlit app
 streamlit run app.py
 ```
 
@@ -77,3 +90,11 @@ The 3D latent space chart provides:
 - Entity frequency
 - Color-coded importance
 - Interactive exploration
+
+## Things to do
+
+1. Add a reasoning layer to generate multi search staregies
+2. Create & attach a search agent (langchain)
+3. Pass the search results to Crawl4AI
+4. Add a RAG layer (faiss OR HNSW)
+5. Finally process all the informatio with LLM

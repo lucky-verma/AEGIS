@@ -3,6 +3,8 @@ import time
 from requests.exceptions import RequestException
 from dotenv import load_dotenv
 import os
+import aiohttp
+import asyncio
 
 load_dotenv()
 
@@ -40,23 +42,50 @@ class SearXNGSearch:
         return []
 
 
-# Initialize the SearXNGSearch instance
 searx = SearXNGSearch()
 
 
-def perform_search(query, num_results=20):
-    """
-    Perform a search using SearXNG and return the results.
-    """
-    results = searx.search(query, num_results)
+async def scrape_url(session, url):
+    try:
+        async with session.post(
+            "http://localhost:8081/get-details", json={"url": url}
+        ) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data.get("content", "")
+            else:
+                print(f"Error scraping {url}: {response.status}")
+                return ""
+    except Exception as e:
+        print(f"Error scraping {url}: {str(e)}")
+        return ""
+
+
+async def perform_search_async(query, num_results=20):
+    searxng_results = searx.search(query, num_results)
+    searxng_urls = [result["url"] for result in searxng_results]
+
+    async with aiohttp.ClientSession() as session:
+        tasks = [scrape_url(session, url) for url in searxng_urls]
+        crawl4ai_contents = await asyncio.gather(*tasks)
+
+    results = []
+    for searxng_result, crawl4ai_content in zip(searxng_results, crawl4ai_contents):
+        results.append({"searxng": searxng_result, "crawl4ai": crawl4ai_content})
+
+    print("Search results:")
+    print(results[0])
     return results
 
 
-# You can keep this for testing purposes
+def perform_search(query, num_results=20):
+    return asyncio.run(perform_search_async(query, num_results))
+
+
 if __name__ == "__main__":
     test_query = "Python programming"
     results = perform_search(test_query)
-    for result in results[:5]:  # Print top 5 results
-        print(f"Title: {result.get('title', '')}")
-        print(f"URL: {result.get('url', '')}")
-        print("---")
+    for result in results[:2]:
+        print(result["url"])
+        print(result["content"][:200])
+        print("---" * 10)

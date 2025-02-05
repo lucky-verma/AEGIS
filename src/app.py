@@ -1,3 +1,4 @@
+import time
 import pandas as pd
 import streamlit as st
 from search import perform_search
@@ -6,23 +7,16 @@ from vector_store import store_entities, query_vector_store
 from llm_processor import process_with_llm
 from advanced_visualizations import create_visualizations
 from dotenv import load_dotenv
-import warnings
 
-warnings.filterwarnings("ignore")
 load_dotenv()
 
 st.set_page_config(page_title="Entity Search and Analysis", layout="wide")
 
-# Custom CSS for better styling
 st.markdown(
     """
     <style>
-    .main {
-        padding: 2rem;
-    }
-    .stButton>button {
-        width: 100%;
-    }
+    .main { padding: 2rem; }
+    .stButton>button { width: 100%; }
     .output-container {
         background-color: #f0f2f6;
         border-radius: 10px;
@@ -36,62 +30,88 @@ st.markdown(
 
 st.title("Entity Search and Analysis")
 
-# Create two columns for input
-col1, col2 = st.columns([3, 1])
+query = st.text_input("Enter an entity to search for:")
+search_button = st.button("Search", key="search_button")
 
-with col1:
-    query = st.text_input("Enter an entity to search for:")
 
-with col2:
-    search_button = st.button("Search", key="search_button")
+def process_query(query):
+    steps = [
+        ("Performing search", perform_search),
+        ("Extracting entities", extract_entities),
+        ("Storing entities", store_entities),
+        ("Querying vector store", query_vector_store),
+        ("Processing with LLM", process_with_llm),
+        ("Getting top entities", lambda x: get_top_entities(x, n=10)),
+        ("Creating visualizations", create_visualizations),
+    ]
+
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    results = {}
+
+    for i, (description, func) in enumerate(steps):
+        progress = int((i / len(steps)) * 100)
+        progress_bar.progress(progress)
+        status_text.text(f"{description}... ({progress}%)")
+
+        if i == 0:
+            results["search_crawl4ai_results"] = func(query)
+        elif i == 1:
+            results["entities"] = func(results["search_crawl4ai_results"])
+        elif i == 2:
+            func(results["entities"])
+        elif i == 3:
+            results["relevant_info"] = func(query)
+        elif i == 4:
+            results["final_output"] = func(query, results["relevant_info"])
+        elif i == 5:
+            results["top_entities"] = func(results["entities"])
+        elif i == 6:
+            results["visualizations"] = func(results["top_entities"])
+
+    progress_bar.progress(100)
+    status_text.success("Processing complete!")
+    progress_bar.empty()
+    time.sleep(2)
+    status_text.empty()
+    return results
+
 
 if search_button and query:
-    with st.spinner("Searching and processing..."):
-        search_results = perform_search(query)
-        entities = extract_entities(search_results)
-        store_entities(entities)
-        relevant_info = query_vector_store(query)
-        final_output = process_with_llm(query, relevant_info)
+    results = process_query(query)
 
-        # Get top entities and create visualizations
-        top_entities = get_top_entities(
-            entities, n=10
-        )  # Increased to 10 for better visualizations
-        scatter_3d, network_graph, dendro = create_visualizations(top_entities)
-
-    # Display results in tabs
-    tab1, tab2, tab3 = st.tabs(
-        ["Structured Output", "3D Visualization", "Raw Search Results"]
-    )
+    tab1, tab2 = st.tabs(["Structured Output", "3D Visualization"])
 
     with tab1:
         st.markdown("<div class='output-container'>", unsafe_allow_html=True)
-        if final_output:
-            st.write(final_output)
-        else:
-            st.write("No structured output available.")
+        st.write(
+            results["final_output"]
+            if results["final_output"]
+            else "No structured output available."
+        )
         st.markdown("</div>", unsafe_allow_html=True)
 
     with tab2:
         col1, col2 = st.columns([2, 1])
         with col1:
-            st.plotly_chart(scatter_3d, use_container_width=True)
-            st.plotly_chart(network_graph, use_container_width=True)
+            st.plotly_chart(results["visualizations"][0], use_container_width=True)
+            st.plotly_chart(results["visualizations"][1], use_container_width=True)
         with col2:
             st.subheader("Entity Statistics")
-            stats_df = pd.DataFrame(top_entities)
+            stats_df = pd.DataFrame(results["top_entities"])
             stats_df.columns = ["Entity", "Type", "Frequency"]
             st.table(stats_df)
-            st.plotly_chart(dendro, use_container_width=True)
+            st.plotly_chart(results["visualizations"][2], use_container_width=True)
 
-    with tab3:
-        st.markdown("<div class='output-container'>", unsafe_allow_html=True)
-        for result in search_results:
-            st.subheader(result.get("title", "No Title"))
-            st.write(result.get("url", "No URL"))
-            st.write(result.get("content", "No Content"))
-            st.markdown("---")
-        st.markdown("</div>", unsafe_allow_html=True)
+    st.sidebar.header("Search Results")
+    for result in results["search_crawl4ai_results"]:
+        title = result["searxng"].get("title", "No Title")
+        url = result["searxng"].get("url", "")
+        content = result["searxng"].get("content", "")
+        st.sidebar.subheader(title)
+        st.sidebar.write(f"[{url}]({url})")
+        st.sidebar.write(content)
+        st.sidebar.markdown("---")
 
 st.sidebar.header("About")
 st.sidebar.info(
