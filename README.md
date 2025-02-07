@@ -4,6 +4,64 @@
 
 This advanced AI-powered Entity Search and Analysis application leverages cutting-edge technologies to provide comprehensive insights into entities discovered through web searches.
 
+### Folder Structure
+
+```bash
+
+Agentic-Entity-Search/
+│   .gitignore
+│   .pre-commit-config.yaml
+│   docker-compose.yml
+│   Dockerfile
+│   LICENSE
+│   README.md
+│   requirements.txt
+│   setup.cfg
+│   setup.py
+│   VERSION
+│
+├───.github
+│   └───workflows
+│           pylint.yml
+│
+├───searxng_docker
+│   │   .env
+│   │   .gitignore
+│   │   Caddyfile
+│   │   docker-compose.yaml
+│   │   LICENSE
+│   │   README.md
+│   │   searxng-docker.service.template
+│   │
+│   └───searxng
+│           limiter.toml
+│           settings.yml
+│           uwsgi.ini
+│
+└───src
+    │   .env
+    │   advanced_visualizations.py
+    │   app.py
+    │   entity_extraction.py
+    │   llm_processor.py
+    │   requirements.txt
+    │   search.py
+    │   vector_store.py
+    │   web_scraper_service.py
+    │   __init__.py
+    │
+    ├───agents
+    │       evaluator.py
+    │       reasoner.py
+    │       retriever.py
+    │       __init__.py
+    │
+    └───utils
+            crawl4ai_wrapper.py
+            searxng_wrapper.py
+            __init__.py
+```
+
 ## ✨ Key Features
 
 - **Web Search**: Perform intelligent searches across multiple search engines

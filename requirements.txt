@@ -1,1 +1,16 @@
-numpy
+streamlit
+requests
+python-dotenv
+spacy
+sentence-transformers
+faiss-cpu
+plotly
+networkx
+scipy
+crawl4ai
+langchain
+httpx
+pydantic
+crawl4ai
+umap-learn
+scikit-learn
