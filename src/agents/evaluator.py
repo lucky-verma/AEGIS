@@ -1,6 +1,6 @@
-import json
 import httpx
 import logging
+import json
 from typing import Dict
 
 
@@ -22,7 +22,7 @@ class EvaluatorAgent:
             - relevance_score (0-10)
             - final_verdict (approved/needs_review/rejected)"""
 
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
                     f"{self.base_url}/api/generate",
                     json={"model": self.model, "prompt": prompt},
@@ -31,7 +31,6 @@ class EvaluatorAgent:
         except Exception as e:
             self.logger.error(f"Evaluation error: {str(e)}")
             return {"error": str(e)}
-
 
     def _parse_evaluation(self, response: str) -> Dict:
         try:

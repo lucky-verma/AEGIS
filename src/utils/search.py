@@ -1,14 +1,21 @@
 import httpx
+import logging
+from typing import List, Dict
 
 
 class SearxNGWrapper:
     def __init__(self):
         self.base_url = "http://host.docker.internal:8080"
+        self.logger = logging.getLogger(__name__)
 
-    async def search(self, query: str, num_results: int = 5) -> list:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{self.base_url}/search",
-                params={"q": query, "format": "json", "num_results": num_results},
-            )
-            return response.json().get("results", [])
+    async def search(self, query: str, num_results: int = 5) -> List[Dict]:
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/search",
+                    params={"q": query, "format": "json", "num_results": num_results},
+                )
+                return response.json().get("results", [])
+        except Exception as e:
+            self.logger.error(f"Search error: {str(e)}")
+            return []

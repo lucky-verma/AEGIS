@@ -2,8 +2,6 @@ import httpx
 import logging
 from typing import List, Dict
 
-# define logger
-logger = logging.getLogger(__name__)
 
 class ReasonerAgent:
     def __init__(self):
@@ -11,26 +9,23 @@ class ReasonerAgent:
         self.model = "deepseek-r1:1.5b"
         self.logger = logging.getLogger(__name__)
 
-
     async def reason(self, query: str, contexts: List[Dict]) -> str:
         try:
             prompt = self._build_reasoning_prompt(query, contexts)
-            async with httpx.AsyncClient(timeout=30.0) as client:  # Increased timeout
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
                     f"{self.base_url}/api/generate",
                     json={
                         "model": self.model,
                         "prompt": prompt,
-                        "options": {
-                            "temperature": 0.3,
-                            "num_ctx": 4096,
-                        },  # Larger context window
+                        "options": {"temperature": 0.3, "num_ctx": 4096, "top_p": 0.9},
                     },
                 )
-                return response.json()["response"].split("Final Answer:")[-1].strip()
+                return self._parse_reasoning(response.json()["response"])
         except Exception as e:
-            logger.error(f"Reasoning error: {str(e)}")
-            return "Could not generate answer. Please try again later."
+            self.logger.error(f"Reasoning error: {str(e)}")
+            return "Could not generate answer due to an error."
 
     def _build_reasoning_prompt(self, query: str, contexts: List[Dict]) -> str:
         prompt = f"""Perform multi-step reasoning for query: {query}
@@ -54,5 +49,4 @@ class ReasonerAgent:
         )
 
     def _parse_reasoning(self, response: str) -> str:
-        # Extract final answer after "Final Answer:" marker
         return response.split("Final Answer:")[-1].strip()

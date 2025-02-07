@@ -1,19 +1,17 @@
-import plotly.express as px
 import plotly.graph_objects as go
 from sentence_transformers import SentenceTransformer
 import umap.umap_ as umap
-import numpy as np
 
 
 def create_visualizations(data):
-    """Generate interactive visualizations for RAG results"""
     visualizations = []
 
     try:
         # Semantic Space Projection
-        if "texts" in data and len(data["texts"]) > 1:
+        if "contexts" in data and len(data["contexts"]) > 1:
             model = SentenceTransformer("all-MiniLM-L6-v2")
-            embeddings = model.encode(data["texts"])
+            texts = [ctx["content"] for ctx in data["contexts"]]
+            embeddings = model.encode(texts)
 
             reducer = umap.UMAP(n_components=3, random_state=42)
             projections = reducer.fit_transform(embeddings)
@@ -25,7 +23,7 @@ def create_visualizations(data):
                         y=projections[:, 1],
                         z=projections[:, 2],
                         mode="markers",
-                        text=data.get("titles", []),
+                        text=[ctx["title"] for ctx in data["contexts"]],
                         marker=dict(
                             size=5, color=projections[:, 2], colorscale="Viridis"
                         ),
