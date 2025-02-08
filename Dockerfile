@@ -13,6 +13,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the entire repository so that the "src" folder is preserved
 COPY . /app/
 
+ENV PYTHONUNBUFFERED=1
+
 # Set PYTHONPATH so Python can locate the src package
 ENV PYTHONPATH=/app
 

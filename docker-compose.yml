@@ -16,6 +16,7 @@ services:
       - SCRAPER_SERVICE=http://host.docker.internal:8081
       - SEARXNG_HOST=http://host.docker.internal:8080
       - OLLAMA_HOST=http://host.docker.internal:11434
+      - PYTHONUNBUFFERED=1
     volumes:
       - ./src:/app/src
       - ./.streamlit:/app/.streamlit  # Mount 
@@ -24,6 +25,11 @@ services:
       - ollama
     networks:
       - agentic-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   ollama:
     image: ollama/ollama:latest

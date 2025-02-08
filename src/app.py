@@ -1,3 +1,5 @@
+import logging
+import sys
 import streamlit as st
 import asyncio
 from agents.retriever import RetrieverAgent
@@ -5,8 +7,15 @@ from agents.reasoner import ReasonerAgent
 from agents.evaluator import EvaluatorAgent
 from advanced_visualizations import create_visualizations
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger(__name__)
+
 # Initialize agents
-retriever = RetrieverAgent(max_hops=3)
+retriever = RetrieverAgent(max_hops=1)
 reasoner = ReasonerAgent()
 evaluator = EvaluatorAgent()
 
@@ -24,10 +33,20 @@ def main():
 
 async def process_query(query: str):
     try:
+        logger.info(f"Processing query: {query}")
         contexts = await retriever.retrieve(query)
+        logger.info(f"Retrieved {len(contexts)} contexts")
+        logger.info(f"First context: {contexts[0] if contexts else 'No contexts'}")
+
         answer = await reasoner.reason(query, contexts)
+        logger.info(f"Generated answer: {answer}")
+
         evaluation = await evaluator.evaluate(query, answer)
-        visualizations = create_visualizations({"contexts": contexts, "answer": answer})
+        logger.info(f"Evaluation result: {evaluation}")
+
+        visualizations = create_visualizations(
+            {"contexts": contexts, "answer": answer, "evaluation": evaluation}
+        )
         return {
             "query": query,
             "answer": answer,
@@ -36,7 +55,8 @@ async def process_query(query: str):
             "visualizations": visualizations,
         }
     except Exception as e:
-        st.error(f"Processing error: {str(e)}")
+        logger.exception(f"Error processing query: {str(e)}")
+        st.error(f"An error occurred while processing your query: {str(e)}")
         return {}
 
 
@@ -55,7 +75,7 @@ def display_results(results):
         for idx, ctx in enumerate(results["contexts"], 1):
             st.subheader(f"Source {idx}: {ctx.get('title', 'Untitled')}")
             st.caption(f"[{ctx['url']}]({ctx['url']})")
-            st.markdown(ctx["content"][:500] + "...")
+            st.markdown(ctx["content"][:300] + "...")
             st.divider()
 
     with st.expander("📊 Analysis"):
