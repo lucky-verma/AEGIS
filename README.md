@@ -9,57 +9,46 @@ This advanced AI-powered Entity Search and Analysis application leverages cuttin
 ```bash
 
 Agentic-Entity-Search/
-│   .gitignore
-│   .pre-commit-config.yaml
-│   docker-compose.yml
-│   Dockerfile
-│   LICENSE
-│   README.md
-│   requirements.txt
-│   setup.cfg
-│   setup.py
-│   VERSION
-│
-├───.github
-│   └───workflows
-│           pylint.yml
-│
-├───searxng_docker
-│   │   .env
-│   │   .gitignore
-│   │   Caddyfile
-│   │   docker-compose.yaml
-│   │   LICENSE
-│   │   README.md
-│   │   searxng-docker.service.template
-│   │
-│   └───searxng
-│           limiter.toml
-│           settings.yml
-│           uwsgi.ini
-│
-└───src
-    │   .env
-    │   advanced_visualizations.py
-    │   app.py
-    │   entity_extraction.py
-    │   llm_processor.py
-    │   requirements.txt
-    │   search.py
-    │   vector_store.py
-    │   web_scraper_service.py
-    │   __init__.py
-    │
-    ├───agents
-    │       evaluator.py
-    │       reasoner.py
-    │       retriever.py
-    │       __init__.py
-    │
-    └───utils
-            crawl4ai_wrapper.py
-            searxng_wrapper.py
-            __init__.py
+├── .github
+│   └── workflows
+│       └── pylint.yml
+├── .gitignore
+├── .pre-commit-config.yaml
+├── .streamlit
+│   └── secrets.toml
+├── Dockerfile
+├── LICENSE
+├── README.md
+├── VERSION
+├── docker-compose.yml
+├── requirements.txt
+├── scraper_service
+│   ├── Dockerfile
+│   ├── main.py
+│   └── requirements.txt
+├── searxng_docker
+│   ├── Caddyfile
+│   ├── LICENSE
+│   ├── README.md
+│   ├── docker-compose.yaml
+│   ├── searxng
+│   │   ├── limiter.toml
+│   │   └── settings.yml
+│   └── searxng-docker.service.template
+├── setup.cfg
+├── setup.py
+└── src
+    ├── __init__.py
+    ├── advanced_visualizations.py
+    ├── agents
+    │   ├── evaluator.py
+    │   ├── reasoner.py
+    │   └── retriever.py
+    ├── app.py
+    ├── rough.ipynb
+    └── utils
+        └── search.py
+
 ```
 
 ## ✨ Key Features
@@ -121,14 +110,13 @@ docker compose up -d
 ```
 
 ```bash
-# Start the crawler service
-cd src
-python web_scraper_service.py
+# Start the crawler, ollama-gpu, and ollama-webui services
+docker compose up -d
 ```
 
 ```bash
 # Run the Streamlit app
-streamlit run app.py
+streamlit run src/app.py
 ```
 
 ## 🌟 Usage
@@ -151,8 +139,8 @@ The 3D latent space chart provides:
 
 ## Things to do
 
-1. Add a reasoning layer to generate multi search staregies
-2. Create & attach a search agent (langchain)
-3. Pass the search results to Crawl4AI
+1. ~~Add a reasoning layer to generate multi search staregies~~
+2. ~~Create & attach a search agent (langchain)~~
+3. ~~Pass the search results to Crawl4AI~~
 4. Add a RAG layer (faiss OR HNSW)
 5. Finally process all the informatio with LLM
