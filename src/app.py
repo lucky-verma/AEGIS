@@ -1,3 +1,4 @@
+import json
 import logging
 import sys
 import streamlit as st
@@ -15,7 +16,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Initialize agents
-retriever = RetrieverAgent(max_hops=1)
+retriever = RetrieverAgent(max_hops=2)
 reasoner = ReasonerAgent()
 evaluator = EvaluatorAgent()
 
@@ -33,30 +34,30 @@ def main():
 
 async def process_query(query: str):
     try:
-        logger.info(f"Processing query: {query}")
         contexts = await retriever.retrieve(query)
-        logger.info(f"Retrieved {len(contexts)} contexts")
-        logger.info(f"First context: {contexts[0] if contexts else 'No contexts'}")
 
         answer = await reasoner.reason(query, contexts)
-        logger.info(f"Generated answer: {answer}")
+        print("\n=== GENERATED REASONING ===")
+        print(answer)
+        print("====================\n")
 
         evaluation = await evaluator.evaluate(query, answer)
-        logger.info(f"Evaluation result: {evaluation}")
+        print("\n=== EVALUATION RESULT ===")
+        print(json.dumps(evaluation, indent=2))
+        print("=====================\n")
 
-        visualizations = create_visualizations(
-            {"contexts": contexts, "answer": answer, "evaluation": evaluation}
-        )
         return {
             "query": query,
             "answer": answer,
             "evaluation": evaluation,
             "contexts": contexts,
-            "visualizations": visualizations,
+            "visualizations": create_visualizations(
+                {"contexts": contexts, "answer": answer, "evaluation": evaluation}
+            ),
         }
     except Exception as e:
+        print(f"\n=== ERROR IN PROCESS_QUERY ===\n{str(e)}\n========================\n")
         logger.exception(f"Error processing query: {str(e)}")
-        st.error(f"An error occurred while processing your query: {str(e)}")
         return {}
 
 
@@ -75,7 +76,7 @@ def display_results(results):
         for idx, ctx in enumerate(results["contexts"], 1):
             st.subheader(f"Source {idx}: {ctx.get('title', 'Untitled')}")
             st.caption(f"[{ctx['url']}]({ctx['url']})")
-            st.markdown(ctx["content"][:300] + "...")
+            st.markdown(ctx["content"][:100] + "...")
             st.divider()
 
     with st.expander("📊 Analysis"):

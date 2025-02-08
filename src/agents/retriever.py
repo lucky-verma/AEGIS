@@ -36,7 +36,7 @@ class RetrieverAgent:
             for result in results:
                 try:
                     response = await client.post(
-                        "http://host.docker.internal:8081/crawl",
+                        "http://localhost:8081/crawl",
                         json={"url": result["url"]},
                     )
                     content = response.json().get("content", "")
@@ -44,7 +44,7 @@ class RetrieverAgent:
                         {
                             "title": result.get("title", ""),
                             "url": result["url"],
-                            "content": content[:200],
+                            "content": content[:100] if content else "No content",
                         }
                     )
                 except Exception as e:
