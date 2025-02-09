@@ -41,13 +41,13 @@ Agentic-Entity-Search/
     ├── __init__.py
     ├── advanced_visualizations.py
     ├── agents
-    │   ├── evaluator.py
-    │   ├── reasoner.py
-    │   └── retriever.py
-    ├── app.py
+    │   ├── retriever.py    # Hybrid search + context management
+    │   ├── reasoner.py     # Cognitive processing pipeline
+    │   └── evaluator.py    # Quality assessment framework
+    ├── app.py              # Orchestration & UI
     ├── rough.ipynb
     └── utils
-        └── search.py
+        └── search.py       # Search API integrations
 
 ```
 
