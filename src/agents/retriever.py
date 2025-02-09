@@ -23,6 +23,7 @@ from haystack.components.retrievers.in_memory import (
 from haystack.components.embedders import SentenceTransformersDocumentEmbedder
 from haystack import Document
 from haystack.utils import ComponentDevice
+from haystack.components.preprocessors import DocumentCleaner, DocumentSplitter
 
 device = ComponentDevice.from_str("cuda:0")
 
@@ -203,6 +204,17 @@ class HybridRetriever:
     def __init__(self):
         # Initialize document store
         self.document_store = InMemoryDocumentStore()
+        self.cleaner = DocumentCleaner(
+            remove_empty_lines=True,
+            remove_extra_whitespaces=True,
+            remove_repeated_substrings=True,
+        )
+        self.splitter = DocumentSplitter(
+            split_by="word",
+            split_length=200,
+            split_overlap=50,
+            respect_sentence_boundary=True,
+        )
 
         # Initialize embedder
         self.embedder = SentenceTransformersDocumentEmbedder(
@@ -224,10 +236,10 @@ class HybridRetriever:
     def warm_up(self):
         """Warm up the embedding model"""
         try:
-            logger.info("Warming up embedding model...")
-            # Run a test embedding to initialize the model
             self.embedder.warm_up()
             logger.info("Embedding model warmed up successfully")
+            self.splitter.warm_up()
+            logger.info("Document splitter warmed up successfully")
         except Exception as e:
             logger.error(f"Error warming up embedding model: {str(e)}")
             raise
@@ -297,8 +309,14 @@ class HybridRetriever:
                 if doc.get("content")
             ]
 
+            # Clean documents
+            cleaned_docs = self.cleaner.run(documents=base_docs)["documents"]
+
+            # Split documents
+            split_docs = self.splitter.run(documents=cleaned_docs)["documents"]
+
             # Generate embeddings
-            embedding_result = self.embedder.run(documents=base_docs)
+            embedding_result = self.embedder.run(documents=split_docs)
             return embedding_result["documents"]
 
         except Exception as e:
@@ -418,6 +436,7 @@ class RetrieverAgent:
 
         for hop in range(self.max_hops):
             try:
+                logger.info(f"\n{'='*40} Hop {hop+1} {'='*40}")
                 # Get search results
                 search_results = await self.searxng.search(current_queries[0])
 
@@ -447,24 +466,14 @@ class RetrieverAgent:
                 print(f"Retrieved {len(retrieved_docs)} documents in hop {hop+1}")
 
                 print(f"Seen URLs: {len(seen_urls)}")
-                print(f"Retrieved Docs: {retrieved_docs}")
-                
+
                 # Process retrieved documents
-                new_contexts = 0
-                for doc in retrieved_docs:
-                    if doc.meta["url"] not in seen_urls:
-                        contexts.append(
-                            {
-                                "title": doc.meta.get("title", ""),
-                                "url": doc.meta["url"],
-                                "content": doc.content,
-                                "doc_type": doc.meta.get("doc_type", "text"),
-                                "relevance": getattr(doc, "score", 0.0),
-                            }
-                        )
-                        seen_urls.add(doc.meta["url"])
-                        new_contexts += 1
-                print(f"Added {new_contexts} new contexts in hop {hop+1}")
+                contexts = self.documents_to_json(retrieved_docs)
+                print(f"Added {len(contexts)} new contexts in hop {hop+1}")
+                for context in contexts:
+                    print(
+                        f"Title: {context['title']}\nURL: {context['url']}\nContent: {context['content']}\nRelevance: {context['relevance']}\nContext Length: {len(context['content'])}"
+                    )
 
                 if self._should_stop(contexts):
                     print(f"Stopping criteria met at hop {hop+1}")
@@ -485,6 +494,20 @@ class RetrieverAgent:
                 continue
 
         return self._post_process_contexts(contexts)
+
+    def documents_to_json(self, docs: List[Document]) -> List[Dict]:
+        """Convert a list of Document objects to a list of JSON-like dictionaries."""
+        json_docs = []
+        for doc in docs:
+            json_doc = {
+                "title": doc.meta.get("title", ""),
+                "url": doc.meta["url"],
+                "content": doc.content,
+                "doc_type": doc.meta.get("doc_type", "text"),
+                "relevance": getattr(doc, "score", 0.0),
+            }
+            json_docs.append(json_doc)
+        return json_docs
 
     async def _process_documents(
         self, results: List[Dict], seen_urls: Set[str]
@@ -684,7 +707,7 @@ class RetrieverAgent:
             logger.info("Stopping: Maximum context limit reached")
             return True
 
-        quality_contexts = [ctx for ctx in contexts if ctx.get("relevance", 0) > 0.7]
+        quality_contexts = [ctx for ctx in contexts if ctx.get("relevance", 0) > 5]
 
         if len(quality_contexts) >= 5:
             logger.info("Stopping: Sufficient high-quality contexts found")

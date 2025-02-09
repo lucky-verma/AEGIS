@@ -69,7 +69,7 @@ class CircuitBreaker:
 class EvaluatorAgent:
     def __init__(self):
         self.base_url = "http://localhost:11434"
-        self.model = "deepseek-r1:7b"
+        self.model = "deepseek-r1:1.5b"
         self.logger = logging.getLogger(__name__)
         self.circuit_breaker = CircuitBreaker()
         self.semaphore = Semaphore(3)  # Limit concurrent model calls

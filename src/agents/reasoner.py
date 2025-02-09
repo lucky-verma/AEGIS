@@ -75,7 +75,7 @@ class CircuitBreaker:
 class ReasonerAgent:
     def __init__(self):
         self.base_url = "http://localhost:11434"
-        self.model = "deepseek-r1:7b"
+        self.model = "deepseek-r1:1.5b"
         self.logger = logging.getLogger(__name__)
         self.max_retries = 3
         self.reasoning_steps = [

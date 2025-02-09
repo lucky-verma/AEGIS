@@ -177,8 +177,8 @@ def display_enhanced_results(results):
 async def process_query(query: str):
     try:
         contexts = await retriever.retrieve(query)
-        answer = None # await reasoner.reason(query, contexts)
-        evaluation = None # await evaluator.evaluate(query, answer)
+        answer = await reasoner.reason(query, contexts)
+        evaluation = await evaluator.evaluate(query, answer)
 
         return {
             "query": query,

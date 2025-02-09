@@ -139,8 +139,16 @@ The 3D latent space chart provides:
 
 ## Things to do
 
-1. ~~Add a reasoning layer to generate multi search staregies~~
-2. ~~Create & attach a search agent (langchain)~~
-3. ~~Pass the search results to Crawl4AI~~
-4. Add a RAG layer (faiss OR HNSW)
-5. Finally process all the informatio with LLM
+Retriever
+    1. Better Haystack Implementation (vector store, retriever), move to container?
+    2. Improve `_generate_next_queries()`
+
+Reasoner
+    1. key information extraction timeouts
+    2. pattern identification timeouts
+
+Evaluator
+    1.
+
+Streamlit
+    1.
