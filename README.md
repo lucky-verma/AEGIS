@@ -1,60 +1,15 @@
-# 🔍 Entity Search and Analysis App
+# 🔍 AEGIS: Advanced Entity-aware Generative Intelligent Search
 
 ## 🚀 Project Overview
 
-This advanced AI-powered Entity Search and Analysis application leverages cutting-edge technologies to provide comprehensive insights into entities discovered through web searches.
-
-### Folder Structure
-
-```bash
-
-Agentic-Entity-Search/
-├── .github
-│   └── workflows
-│       └── pylint.yml
-├── .gitignore
-├── .pre-commit-config.yaml
-├── .streamlit
-│   └── secrets.toml
-├── Dockerfile
-├── LICENSE
-├── README.md
-├── VERSION
-├── docker-compose.yml
-├── requirements.txt
-├── scraper_service
-│   ├── Dockerfile
-│   ├── main.py
-│   └── requirements.txt
-├── searxng_docker
-│   ├── Caddyfile
-│   ├── LICENSE
-│   ├── README.md
-│   ├── docker-compose.yaml
-│   ├── searxng
-│   │   ├── limiter.toml
-│   │   └── settings.yml
-│   └── searxng-docker.service.template
-├── setup.cfg
-├── setup.py
-└── src
-    ├── __init__.py
-    ├── advanced_visualizations.py
-    ├── agents
-    │   ├── retriever.py    # Hybrid search + context management
-    │   ├── reasoner.py     # Cognitive processing pipeline
-    │   └── evaluator.py    # Quality assessment framework
-    ├── app.py              # Orchestration & UI
-    ├── rough.ipynb
-    └── utils
-        └── search.py       # Search API integrations
-
-```
+AEGIS is a cutting-edge AI-powered semantic search engine with multi-hop reasoning capabilities, designed for complex entity relationship discovery and context-aware information retrieval. It leverages advanced technologies to provide comprehensive insights into entities discovered through intelligent web searches.
 
 ## ✨ Key Features
 
-- **Web Search**: Perform intelligent searches across multiple search engines
-- **Entity Extraction**: Identify and categorize key entities from search results
+- **Neural Query Expansion**: Automatically enriches search terms using contextual embeddings
+- **Multi-Hop Reasoning Engine**: Chains related concepts across documents through probabilistic inference
+- **Entity-Aware Crawling**: Focused web harvesting with dynamic priority queuing (Crawl4AI integration)
+- **Semantic Indexing**: Hybrid vector-relational storage for fast concept retrieval
 - **3D Latent Space Visualization**: Explore semantic relationships between entities
 - **AI-Powered Analysis**: Generate structured insights using advanced language models
 
@@ -72,58 +27,43 @@ Agentic-Entity-Search/
 ## 📦 Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/lucky-verma/Agentic-Entity-Search.git
-
-# Navigate to project directory
-cd Agentic-Entity-Search
-
-# Create virtual environment
+git clone https://github.com/lucky-verma/Aegis.git
+cd Aegis
 python -m venv venv
 source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Download SpaCy model
 python -m spacy download en_core_web_trf
 ```
 
 ## 🔧 Configuration
 
-1. Create a `.env` file in the project root
-2. Add the following configurations:
+Create a `.env` file in the project root with the following:
 
-``` bash
+```bash
 SEARXNG_URL=http://localhost:8080
 OLLAMA_URL=http://localhost:11434/api/generate
 LLM_MODEL=llama3.2
 VECTOR_DIMENSION=384
 ```
 
-## 🚀 Running the Application
+## 🚀 Running AEGIS
 
 ```bash
 # Start the search service
 cd searxng_docker
 docker compose up -d
-```
 
-```bash
-# Start the crawler, ollama-gpu, and ollama-webui services
+# Start other services
 docker compose up -d
-```
 
-```bash
 # Run the Streamlit app
 streamlit run src/app.py
 ```
 
 ## 🌟 Usage
 
-1. Enter an entity name in the search bar
-2. Click "Search"
-3. Explore results through different tabs:
+1. Enter an entity or query in the search bar
+2. Explore results through:
    - Structured Output
    - 3D Entity Visualization
    - Raw Search Results
@@ -133,22 +73,34 @@ streamlit run src/app.py
 The 3D latent space chart provides:
 
 - Semantic proximity between entities
-- Entity frequency
-- Color-coded importance
+- Entity frequency and importance (color-coded)
 - Interactive exploration
 
-## Things to do
+## 🔮 Future Developments
 
-Retriever
-    1. Better Haystack Implementation (vector store, retriever), move to container?
-    2. Improve `_generate_next_queries()`
+- Enhance Haystack implementation for improved vector store and retrieval
+- Optimize multi-hop reasoning and query expansion algorithms
+- Implement advanced evaluation metrics for search quality
+- Expand UI features for more intuitive data exploration
 
-Reasoner
-    1. key information extraction timeouts
-    2. pattern identification timeouts
+## 📂 Project Structure
 
-Evaluator
-    1.
-
-Streamlit
-    1.
+```bash
+Aegis/
+├── .github/
+├── .streamlit/
+├── scraper_service/
+├── searxng_docker/
+├── src/
+│   ├── agents/
+│   │   ├── retriever.py    # Hybrid search + context management
+│   │   ├── reasoner.py     # Cognitive processing pipeline
+│   │   └── evaluator.py    # Quality assessment framework
+│   ├── utils/
+│   ├── app.py              # Orchestration & UI
+│   └── advanced_visualizations.py
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+└── README.md
+```
