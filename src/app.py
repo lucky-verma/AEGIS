@@ -1,120 +1,198 @@
-import time
-import pandas as pd
+import logging
+import sys
 import streamlit as st
-from search import perform_search
-from entity_extraction import extract_entities, get_top_entities
-from vector_store import store_entities, query_vector_store
-from llm_processor import process_with_llm
+import asyncio
+from agents.retriever import RetrieverAgent
+from agents.reasoner import ReasonerAgent
+from agents.evaluator import EvaluatorAgent
 from advanced_visualizations import create_visualizations
-from dotenv import load_dotenv
 
-load_dotenv()
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger(__name__)
 
-st.set_page_config(page_title="Entity Search and Analysis", layout="wide")
+st.set_page_config(page_title="Agentic RAG System", layout="wide")
 
+# Custom CSS
 st.markdown(
     """
     <style>
-    .main { padding: 2rem; }
-    .stButton>button { width: 100%; }
-    .output-container {
-        background-color: #f0f2f6;
-        border-radius: 10px;
-        padding: 20px;
-        margin-top: 20px;
-    }
+    .main .block-container { padding-top: 2rem; }
+    .stProgress .st-bo { height: 20px; }
+    .stAlert { padding: 10px; }
     </style>
-    """,
+""",
     unsafe_allow_html=True,
 )
 
-st.title("Entity Search and Analysis")
 
-query = st.text_input("Enter an entity to search for:")
-search_button = st.button("Search", key="search_button")
+# Initialize agents
+@st.cache_resource
+def init_agents():
+    return RetrieverAgent(max_hops=2), ReasonerAgent(), EvaluatorAgent()
 
 
-def process_query(query):
-    steps = [
-        ("Performing search", perform_search),
-        ("Extracting entities", extract_entities),
-        ("Storing entities", store_entities),
-        ("Querying vector store", query_vector_store),
-        ("Processing with LLM", process_with_llm),
-        ("Getting top entities", lambda x: get_top_entities(x, n=10)),
-        ("Creating visualizations", create_visualizations),
-    ]
+retriever, reasoner, evaluator = init_agents()
 
+
+def main():
+
+    # Sidebar Configuration
+    with st.sidebar:
+        st.image("https://raw.githubusercontent.com/your-repo/logo.png", width=100)
+        st.title("Settings")
+
+        # Retrieval Settings
+        st.header("🔍 Retrieval Settings")
+        retriever.max_hops = st.slider("Max Hops", 1, 5, 2)
+        st.number_input("Results per Hop", 3, 10, 5)
+
+        # Reasoning Settings
+        st.header("🧠 Reasoning Settings")
+        st.selectbox("Reasoning Mode", ["Detailed", "Concise"], index=0)
+
+        # Evaluation Settings
+        st.header("⚖️ Evaluation Settings")
+        st.multiselect(
+            "Evaluation Metrics",
+            [
+                "Accuracy",
+                "Completeness",
+                "Relevance",
+                "Coherence",
+                "Factual Consistency",
+            ],
+            ["Accuracy", "Completeness", "Relevance"],
+        )
+
+        st.markdown("---")
+        st.info("💡 Adjust settings to customize the search and analysis process.")
+
+    # Main Content
+    st.title("🔮 Multi-Hop Entity Search System")
+    st.markdown("### Discover deep connections with advanced reasoning")
+
+    # Query Input
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        query = st.text_input(
+            "Enter your query:",
+            placeholder="Try: 'Who is John Smith and what are his contributions?'",
+        )
+    with col2:
+        search_button = st.button("🔍 Search", use_container_width=True)
+
+    if search_button and query:
+        process_and_display_results(query)
+
+
+def process_and_display_results(query):
+    # Progress Bar
     progress_bar = st.progress(0)
     status_text = st.empty()
-    results = {}
 
-    for i, (description, func) in enumerate(steps):
-        progress = int((i / len(steps)) * 100)
-        progress_bar.progress(progress)
-        status_text.text(f"{description}... ({progress}%)")
+    try:
+        with st.spinner():
+            # Retrieval Phase
+            status_text.text("🔍 Retrieving information...")
+            progress_bar.progress(25)
+            results = asyncio.run(process_query(query))
 
-        if i == 0:
-            results["search_crawl4ai_results"] = func(query)
-        elif i == 1:
-            results["entities"] = func(results["search_crawl4ai_results"])
-        elif i == 2:
-            func(results["entities"])
-        elif i == 3:
-            results["relevant_info"] = func(query)
-        elif i == 4:
-            results["final_output"] = func(query, results["relevant_info"])
-        elif i == 5:
-            results["top_entities"] = func(results["entities"])
-        elif i == 6:
-            results["visualizations"] = func(results["top_entities"])
-
-    progress_bar.progress(100)
-    status_text.success("Processing complete!")
-    progress_bar.empty()
-    time.sleep(2)
-    status_text.empty()
-    return results
+            if results:
+                # Display Results
+                progress_bar.progress(100)
+                status_text.text("✨ Results ready!")
+                display_enhanced_results(results)
+            else:
+                st.error("⚠️ No results found. Try refining your query.")
+    except Exception as e:
+        st.error(f"🚫 An error occurred: {str(e)}")
+    finally:
+        # Cleanup
+        progress_bar.empty()
+        status_text.empty()
 
 
-if search_button and query:
-    results = process_query(query)
-
-    tab1, tab2 = st.tabs(["Structured Output", "3D Visualization"])
+def display_enhanced_results(results):
+    # Tabs for different views
+    tab1, tab2, tab3, tab4 = st.tabs(
+        ["📝 Answer", "🔍 Sources", "📊 Analysis", "⚖️ Evaluation"]
+    )
 
     with tab1:
-        st.markdown("<div class='output-container'>", unsafe_allow_html=True)
-        st.write(
-            results["final_output"]
-            if results["final_output"]
-            else "No structured output available."
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("### Generated Answer")
+        st.info(f"**Query:** {results['query']}")
+        st.success(f"**Answer:** {results['answer']}")
+
+        # Confidence Score
+        confidence = results["evaluation"].get("confidence_score", 0)
+        st.progress(confidence / 10)
+        st.caption(f"Confidence Score: {confidence}/10")
 
     with tab2:
-        col1, col2 = st.columns([2, 1])
+        st.markdown("### Source Documents")
+        for idx, ctx in enumerate(results["contexts"], 1):
+            with st.expander(f"Source {idx}: {ctx.get('title', 'Untitled')}"):
+                st.caption(f"URL: {ctx['url']}")
+                st.markdown(ctx["content"][:500] + "...")
+                st.caption(f"Relevance Score: {ctx.get('relevance', 0):.2f}")
+
+    with tab3:
+        st.markdown("### Visual Analysis")
+        if results.get("visualizations"):
+            cols = st.columns(2)
+            for idx, fig in enumerate(results["visualizations"]):
+                cols[idx % 2].plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No visualization data available")
+
+    with tab4:
+        st.markdown("### Evaluation Details")
+        col1, col2 = st.columns(2)
+
         with col1:
-            st.plotly_chart(results["visualizations"][0], use_container_width=True)
-            st.plotly_chart(results["visualizations"][1], use_container_width=True)
+            st.json(results["evaluation"])
+
         with col2:
-            st.subheader("Entity Statistics")
-            stats_df = pd.DataFrame(results["top_entities"])
-            stats_df.columns = ["Entity", "Type", "Frequency"]
-            st.table(stats_df)
-            st.plotly_chart(results["visualizations"][2], use_container_width=True)
+            if "detailed_feedback" in results["evaluation"]:
+                feedback = results["evaluation"]["detailed_feedback"]
 
-    st.sidebar.header("Search Results")
-    for result in results["search_crawl4ai_results"]:
-        title = result["searxng"].get("title", "No Title")
-        url = result["searxng"].get("url", "")
-        content = result["searxng"].get("content", "")
-        st.sidebar.subheader(title)
-        st.sidebar.write(f"[{url}]({url})")
-        st.sidebar.write(content)
-        st.sidebar.markdown("---")
+                st.markdown("#### 💪 Strengths")
+                for strength in feedback.get("strengths", []):
+                    st.success(strength)
 
-st.sidebar.header("About")
-st.sidebar.info(
-    "This app performs entity search and analysis using web data and AI processing."
-)
-st.sidebar.markdown("---")
+                st.markdown("#### 🎯 Areas for Improvement")
+                for weakness in feedback.get("weaknesses", []):
+                    st.warning(weakness)
+
+                st.markdown("#### 💡 Suggestions")
+                for suggestion in feedback.get("suggestions", []):
+                    st.info(suggestion)
+
+
+async def process_query(query: str):
+    try:
+        contexts = await retriever.retrieve(query)
+        answer = await reasoner.reason(query, contexts)
+        evaluation = await evaluator.evaluate(query, answer)
+
+        return {
+            "query": query,
+            "answer": answer,
+            "evaluation": evaluation,
+            "contexts": contexts,
+            "visualizations": create_visualizations(
+                {"contexts": contexts, "answer": answer, "evaluation": evaluation}
+            ),
+        }
+    except Exception as e:
+        logger.exception(f"Error processing query: {str(e)}")
+        return None
+
+
+if __name__ == "__main__":
+    main()
