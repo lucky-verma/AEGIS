@@ -132,3 +132,4 @@ dmypy.json
 ollama
 ollama-webui
 data
+searxng_docker/searxng/settings.yml
