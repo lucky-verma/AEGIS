@@ -6,9 +6,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4  # Update to latest version
       - name: Install dependencies
         run: pip install -r .github/ci/lint_requirements.txt
       - name: Lint
         run: .github/ci/lint.sh
-

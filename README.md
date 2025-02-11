@@ -46,6 +46,12 @@ LLM_MODEL=llama3.2
 VECTOR_DIMENSION=384
 ```
 
+Generate the secret key for SearXNG in the `searxng/settings.yml` file
+
+```bash
+sed -i "s|ultrasecretkey|$(openssl rand -hex 32)|g" searxng/settings.yml # linux
+```
+
 ## 🚀 Running AEGIS
 
 ```bash
