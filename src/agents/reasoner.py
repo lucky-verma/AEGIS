@@ -339,7 +339,6 @@ class ReasonerAgent:
         start_time = time.time()
         prompt = f"""Provide a simple analysis of the main themes related to: {query}
         Context: {self._format_contexts(contexts)[:1000]}
-        
         List the main themes found:"""
 
         response = await self._get_model_response_with_timeout(prompt, timeout=200)

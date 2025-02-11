@@ -139,18 +139,18 @@ class HybridQueryExpander:
         query_expansion_prompt = f"""
           You are part of an information system that processes user queries.
           You expand a given query into {number} queries that incorporate relevant context terms.
-          
+
           Structure:
           Follow the structure shown below in examples to generate expanded queries with context terms.
           Examples:
           1. Example Query 1: "climate change effects"
           Context Terms: ["temperature", "sea level", "weather"]
           Example Expanded Queries: ["temperature effects of climate change", "sea level rise due to global warming", "weather changes from environmental effects"]
-          
+
           2. Example Query 2: "machine learning algorithms"
           Context Terms: ["classification", "regression", "optimization"]
           Example Expanded Queries: ["classification in machine learning", "regression techniques in algorithms", "optimization strategies for learning"]
-          
+
           Your Task:
           Original Query: "{query}"
           Context Terms: {context_terms}
