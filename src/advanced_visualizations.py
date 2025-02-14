@@ -35,15 +35,17 @@ def create_visualizations(data):
 
         # Answer Quality Radar Chart
         if "evaluation" in data:
-            eval_data = data["evaluation"]
+            eval_data = data["evaluation"]["scores"]
             fig = go.Figure(
                 data=go.Scatterpolar(
                     r=[
-                        eval_data.get("accuracy_score", 0),
-                        eval_data.get("completeness_score", 0),
-                        eval_data.get("relevance_score", 0),
+                        eval_data.get("accuracy_score", 0) / 10,
+                        eval_data.get("completeness_score", 0) / 10,
+                        eval_data.get("relevance_score", 0) / 10,
+                        eval_data.get("coherence_score", 0) / 10,
+                        eval_data.get("factual_consistency_score", 0) / 10,
                     ],
-                    theta=["Accuracy", "Completeness", "Relevance"],
+                    theta=["Accuracy", "Completeness", "Relevance", "Coherence", "Factual Consistency"],
                     fill="toself",
                 )
             )

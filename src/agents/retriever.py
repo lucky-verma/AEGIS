@@ -3,10 +3,13 @@ import httpx
 import asyncio
 from typing import List, Dict, Optional, Set
 
+import numpy as np
 import spacy
 from spacy.tokens import Token
+from datasketch import MinHash
 
 from utils.search import SearxNGWrapper
+from utils.ollama_utils import ensure_model_available
 import logging
 from dataclasses import asdict, dataclass
 from urllib.parse import urlparse
@@ -14,6 +17,7 @@ import re
 import time
 from functools import lru_cache
 from asyncio import Semaphore
+from sentence_transformers import CrossEncoder
 from haystack_integrations.components.generators.ollama import OllamaGenerator
 from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.components.retrievers.in_memory import (
@@ -26,6 +30,7 @@ from haystack.utils import ComponentDevice
 from haystack.components.preprocessors import DocumentCleaner, DocumentSplitter
 
 device = ComponentDevice.from_str("cuda:0")
+ensure_model_available("llama3.2:3b")
 
 # Configure logging
 logging.basicConfig(
@@ -112,25 +117,77 @@ class RefinedQuery:
 
 
 class HybridQueryExpander:
-    def __init__(self):
+
+    def __init__(self, max_expansions=3, similarity_threshold=0.7):
         self.nlp = nlp
         self.generator = OllamaGenerator(
             model="llama3.2:3b", url="http://localhost:11434"
         )
+        self.max_expansions = max_expansions
+        self.similarity_threshold = similarity_threshold
+        self.cross_encoder = CrossEncoder(
+            "cross-encoder/ms-marco-MiniLM-L-6-v2", max_length=512
+        )
 
     def expand_query(self, original_query: str, contexts: List[Dict]) -> List[str]:
-        """Generate context-aware query variations"""
         try:
             context_terms = self._extract_context_terms(contexts)
             expansions = self._generate_llm_expansions(original_query, context_terms)
 
-            all_queries = list({original_query, *expansions})
+            all_queries = [original_query] + expansions
             logger.info(f"Generated {len(expansions)} query variations")
             return all_queries
-
         except Exception as e:
             logger.error(f"Query expansion failed: {str(e)}")
             return [original_query]
+
+    def _extract_filtered_context_terms(
+        self, contexts: List[Dict], original_query: str
+    ) -> Set[str]:
+        """Extract and filter context terms using semantic relevance"""
+        raw_terms = self._extract_context_terms(contexts)
+
+        # Filter terms using semantic similarity to original query
+        query_doc = self.nlp(original_query)
+        return {
+            term
+            for term in raw_terms
+            if query_doc.similarity(self.nlp(term)) >= self.similarity_threshold
+        }
+
+    def _rank_expansions(
+        self, original: str, candidates: List[str], top_k: int
+    ) -> List[str]:
+        """Rank expansions using cross-encoder and diversity filtering"""
+        if not candidates:
+            return []
+
+        # Score expansions against original query
+        pairs = [(original, exp) for exp in candidates]
+        scores = self.cross_encoder.predict(pairs)
+
+        # Sort by score and filter similar expansions
+        ranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)
+        return self._diverse_selection(ranked, top_k)
+
+    def _diverse_selection(self, ranked: List[tuple], top_k: int) -> List[str]:
+        """Ensure diversity in selected expansions using MinHash"""
+        selected = []
+        minhash = MinHash(num_perm=128)
+
+        for query, score in ranked:
+            current_hash = minhash.copy()
+            current_hash.update(query.encode())
+
+            # Check similarity with selected queries
+            if not any(current_hash.jaccard(s_hash) > 0.6 for s_hash in selected):
+                selected.append(query)
+                minhash.update(query.encode())
+
+            if len(selected) >= top_k:
+                break
+
+        return selected
 
     def _generate_llm_expansions(
         self, query: str, context_terms: Set[str], number: int = 4
@@ -203,7 +260,11 @@ class HybridQueryExpander:
 class HybridRetriever:
     def __init__(self):
         # Initialize document store
-        self.document_store = InMemoryDocumentStore()
+        self.document_store = (
+            InMemoryDocumentStore()
+        )  # TODO: use Chroma with sentence-transformers
+
+        # Initialize cleaner and splitter
         self.cleaner = DocumentCleaner(
             remove_empty_lines=True,
             remove_extra_whitespaces=True,
@@ -228,7 +289,13 @@ class HybridRetriever:
         )
 
         # Configure weights
-        self.weights = {"bm25": 0.4, "vector": 0.6}
+        self.weights = {
+            "bm25": 0.5,
+            "vector": 0.5,
+            "relevance": 0.4,
+            "diversity": 0.3,
+            "confidence": 0.3,
+        }
 
         # Warm up the embedding model
         self.warm_up()
@@ -323,8 +390,10 @@ class HybridRetriever:
             logger.error(f"Embedding error: {str(e)}")
             return []
 
-    async def retrieve(self, queries: List[str], top_k: int = 5) -> List[Document]:
-        """Perform hybrid retrieval combining BM25 and dense retrieval"""
+    async def retrieve(
+        self, queries: List[str], top_k: int = 5, quality_threshold: float = 0.7
+    ) -> List[Document]:
+        """Perform hybrid retrieval combining BM25 and dense retrieval with quality filtering"""
         try:
             all_docs = []
 
@@ -332,7 +401,6 @@ class HybridRetriever:
                 # BM25 retrieval
                 bm25_result = self.bm25_retriever.run(query=query, top_k=top_k)
                 bm25_docs = bm25_result["documents"]
-                print(f"BM25 retrieved {len(bm25_docs)} documents")
 
                 # Generate query embedding
                 query_embedding_result = self.embedder.run(
@@ -345,11 +413,15 @@ class HybridRetriever:
                     query_embedding=query_embedding, top_k=top_k
                 )
                 vector_docs = vector_result["documents"]
-                print(f"Vector retrieved {len(vector_docs)} documents")
 
                 # Combine results
                 combined_docs = self._combine_results(bm25_docs, vector_docs)
-                all_docs.extend(combined_docs)
+
+                # Apply quality filtering
+                high_quality_docs = self._filter_high_quality_docs(
+                    combined_docs, query, query_embedding, quality_threshold
+                )
+                all_docs.extend(high_quality_docs)
 
             # Deduplicate and return
             return self._deduplicate_docs(all_docs)
@@ -386,6 +458,62 @@ class HybridRetriever:
 
         return [item["doc"] for item in sorted_docs]
 
+    def _filter_high_quality_docs(
+        self,
+        docs: List[Document],
+        query: str,
+        query_embedding: np.ndarray,
+        threshold: float,
+    ) -> List[Document]:
+        """Filter documents based on multiple quality metrics"""
+        high_quality_docs = []
+
+        for doc in docs:
+            # Calculate relevance score (cosine similarity between query and document embeddings)
+            doc_embedding = self.embedder.run(documents=[doc])["documents"][0].embedding
+            relevance = np.dot(query_embedding, doc_embedding) / (
+                np.linalg.norm(query_embedding) * np.linalg.norm(doc_embedding)
+            )
+
+            # Calculate diversity score (based on content similarity with other documents)
+            diversity = self._calculate_diversity(doc, docs)
+
+            # Calculate confidence score (based on the retriever's score)
+            confidence = doc.score if hasattr(doc, "score") else 0.5
+
+            # Calculate weighted quality score
+            quality_score = (
+                self.weights.get("relevance", 0.4) * relevance
+                + self.weights.get("diversity", 0.3) * diversity
+                + self.weights.get("confidence", 0.3) * confidence
+            )
+
+            # Add quality score to document metadata
+            doc.meta["quality_score"] = quality_score
+
+            if quality_score >= threshold:
+                high_quality_docs.append(doc)
+
+        return high_quality_docs
+
+    def _calculate_diversity(self, doc: Document, all_docs: List[Document]) -> float:
+        """Calculate diversity score based on content similarity with other documents"""
+        doc_embedding = self.embedder.run(documents=[doc])["documents"][0].embedding
+        similarities = []
+
+        for other_doc in all_docs:
+            if other_doc.id != doc.id:
+                other_embedding = self.embedder.run(documents=[other_doc])["documents"][
+                    0
+                ].embedding
+                similarity = np.dot(doc_embedding, other_embedding) / (
+                    np.linalg.norm(doc_embedding) * np.linalg.norm(other_embedding)
+                )
+                similarities.append(similarity)
+
+        # Higher diversity score means less similar to other documents
+        return 1 - (sum(similarities) / len(similarities)) if similarities else 1
+
     def _deduplicate_docs(self, docs: List[Document]) -> List[Document]:
         """Remove duplicate documents while preserving order"""
         seen = set()
@@ -413,10 +541,11 @@ class HybridRetriever:
 
 
 class RetrieverAgent:
-    def __init__(self, max_hops: int = 2):
+    def __init__(self, max_hops: int = 2, max_expansions_per_hop: int = 5):
         self.max_hops = max_hops
+        self.max_expansions_per_hop = max_expansions_per_hop
         self.searxng = SearxNGWrapper()
-        self.query_expander = HybridQueryExpander()
+        self.query_expander = HybridQueryExpander(max_expansions=max_expansions_per_hop)
         self.hybrid_retriever = HybridRetriever()
         self.supported_doc_types = {
             "pdf": self._process_pdf,
@@ -427,26 +556,35 @@ class RetrieverAgent:
         self.circuit_breaker = CircuitBreaker(failure_threshold=10, reset_timeout=300)
         self.semaphore = Semaphore(5)
         self.cache = {}
-        logger.info(f"RetrieverAgent initialized with max_hops={max_hops}")
+        logger.info(
+            f"RetrieverAgent initialized with max_hops={max_hops}, max_expansions_per_hop={max_expansions_per_hop}"
+        )
 
     async def retrieve(self, query: str) -> List[Dict]:
         contexts = []
         seen_urls: Set[str] = set()
-        current_queries = [query]
+        query_history: Set[str] = set()
+
+        # Initialize with controlled expansion
+        current_queries = self.query_expander.expand_query(query, [])
+        logger.info(f"Initial queries: {current_queries}")
+        query_history.update(current_queries)
 
         for hop in range(self.max_hops):
             try:
                 logger.info(f"\n{'='*40} Hop {hop+1} {'='*40}")
-                # Get search results
-                search_results = await self.searxng.search(current_queries[0])
+
+                # Parallel search with duplicate prevention
+                all_results = await self._perform_searches(
+                    current_queries, num_results=5
+                )
+                logger.info(f"Total search results: {len(all_results)}")
 
                 # Process and crawl search results
-                processed_docs = await self._process_documents(
-                    search_results, seen_urls
+                processed_docs = await self._process_documents(all_results, seen_urls)
+                logger.info(
+                    f"Processed {len(processed_docs)} docs | Seen URLs: {len(seen_urls)}"
                 )
-                print(f"Processed {len(processed_docs)} documents in hop {hop+1}")
-                print(f"Seen URLs: {len(seen_urls)}")
-                print(f"Current contexts: {len(contexts)}")
 
                 # Generate embeddings and index documents
                 embedded_docs = await self.hybrid_retriever.process_and_embed_documents(
@@ -454,34 +592,25 @@ class RetrieverAgent:
                 )
                 self.hybrid_retriever.document_store.write_documents(embedded_docs)
 
-                # Generate expanded queries
-                expanded_queries = []
-                for q in current_queries:
-                    expanded = self.query_expander.expand_query(q, contexts)
-                    expanded_queries.extend(expanded)
-                print(f"Expanded queries ({len(expanded_queries)}): {expanded_queries}")
-
                 # Perform hybrid retrieval
-                retrieved_docs = await self.hybrid_retriever.retrieve(expanded_queries)
-                print(f"Retrieved {len(retrieved_docs)} documents in hop {hop+1}")
+                retrieved_docs = await self.hybrid_retriever.retrieve(current_queries)
+                new_contexts = self._documents_to_json(retrieved_docs)
+                contexts.extend(new_contexts)
+                logger.info(
+                    f"Retrieved {len(new_contexts)} new contexts in hop {hop+1}"
+                )
 
-                print(f"Seen URLs: {len(seen_urls)}")
-
-                # Process retrieved documents
-                contexts = self.documents_to_json(retrieved_docs)
-                print(f"Added {len(contexts)} new contexts in hop {hop+1}")
-                for context in contexts:
-                    print(
-                        f"Title: {context['title']}\nURL: {context['url']}\nContent: {context['content']}\nRelevance: {context['relevance']}\nContext Length: {len(context['content'])}"
-                    )
-
+                # Check for stopping criteria
                 if self._should_stop(contexts):
-                    print(f"Stopping criteria met at hop {hop+1}")
+                    logger.info(f"Stopping criteria met at hop {hop+1}")
                     break
 
-                # Update queries for next hop
-                current_queries = self._generate_next_queries(contexts)
-                print(
+                # Generate controlled expansions for next hop
+                expanded_queries = self.query_expander.expand_query(query, contexts)
+                current_queries = [
+                    q for q in expanded_queries if q not in query_history
+                ][: self.max_expansions_per_hop]
+                logger.info(
                     f"Generated {len(current_queries)} queries for next hop: {current_queries}"
                 )
 
@@ -491,11 +620,29 @@ class RetrieverAgent:
                 if self.circuit_breaker.is_open:
                     logger.warning("Circuit breaker open, using fallback retrieval")
                     return await self._fallback_retrieval(query)
-                continue
-
+        # delete all the documents from the document store
+        # self.hybrid_retriever.document_store.delete_documents()Initial queries
         return self._post_process_contexts(contexts)
 
-    def documents_to_json(self, docs: List[Document]) -> List[Dict]:
+    async def _perform_searches(
+        self, queries: Set[str], num_results: int = 3, engines: List[str] = None
+    ):
+        search_tasks = [
+            self.searxng.search(q, num_results=num_results, engines=engines)
+            for q in queries
+        ]
+        all_results = await asyncio.gather(*search_tasks)
+
+        # Basic deduplication based on URL
+        unique_results = {}
+        for result_list in all_results:
+            for result in result_list:
+                if result["url"] not in unique_results:
+                    unique_results[result["url"]] = result
+
+        return list(unique_results.values())
+
+    def _documents_to_json(self, docs: List[Document]) -> List[Dict]:
         """Convert a list of Document objects to a list of JSON-like dictionaries."""
         json_docs = []
         for doc in docs:
@@ -569,7 +716,7 @@ class RetrieverAgent:
             if not self._is_valid_url(url):
                 return None
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
                     "http://localhost:8081/crawl",
                     json={"url": url},
@@ -703,15 +850,33 @@ class RetrieverAgent:
         return [f"{term} related information" for term in key_terms]
 
     def _should_stop(self, contexts: List[Dict]) -> bool:
-        if len(contexts) >= 15:
-            logger.info("Stopping: Maximum context limit reached")
-            return True
+        # # Maximum context limit
+        # if len(contexts) >= 15:
+        #     logger.info("Stopping: Maximum context limit reached")
+        #     return True
 
-        quality_contexts = [ctx for ctx in contexts if ctx.get("relevance", 0) > 5]
-
-        if len(quality_contexts) >= 5:
+        # Check for high-quality contexts based on the new quality_score
+        quality_contexts = [
+            ctx for ctx in contexts if ctx.get("meta", {}).get("quality_score", 0) > 0.7
+        ]
+        if len(quality_contexts) >= 10:
             logger.info("Stopping: Sufficient high-quality contexts found")
+            print(f"Found {len(quality_contexts)} high-quality contexts")
             return True
+
+        # Check for diminishing returns
+        if len(contexts) > 10:
+            recent_qualities = [
+                ctx.get("meta", {}).get("quality_score", 0) for ctx in contexts[-5:]
+            ]
+            if (
+                sum(recent_qualities) / 5 < 0.5
+            ):  # If average quality of last 5 contexts is low
+                logger.info("Stopping: Diminishing returns in context quality")
+                print(
+                    f"Average quality of last 5 contexts: {sum(recent_qualities) / 5:.2f}"
+                )
+                return True
 
         return False
 
@@ -721,6 +886,8 @@ class RetrieverAgent:
 
         for idx, ctx in enumerate(contexts, 1):
             logger.debug(f"Processing context {idx}")
+            print(f"Processing context {idx}")
+            print(ctx.keys())
             content = ctx.get("content", "")
             cleaned_content = self._clean_content(content)
 

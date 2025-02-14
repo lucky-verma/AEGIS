@@ -129,7 +129,7 @@ def display_enhanced_results(results):
         st.success(f"**Answer:** {results['answer']}")
 
         # Confidence Score
-        confidence = results["evaluation"].get("confidence_score", 0)
+        confidence = results["evaluation"]["scores"].get("accuracy_score", 0)
         st.progress(confidence / 10)
         st.caption(f"Confidence Score: {confidence}/10")
 

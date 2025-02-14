@@ -111,6 +111,9 @@ class ReasonerAgent:
             # Execute reasoning steps with timeout
             for step_idx, step_func in enumerate(self.reasoning_steps, 1):
                 try:
+                    print(
+                        f"\n{'!'*50}\nExecuting step {step_idx}: {step_func.__name__}\n{'!'*50}"
+                    )
                     step_result = await asyncio.wait_for(
                         step_func(query, current_context, reasoning_chain),
                         timeout=200,  #  2 minutes timeout per step
@@ -123,7 +126,10 @@ class ReasonerAgent:
                     self._log_step_metrics(step_result)
                     reasoning_chain.append(step_result)
                     current_context = self._update_context(current_context, step_result)
-
+                    # print all the results in this step
+                    print(f"\n{'-'*50}\nStep {step_idx} results:\n{'-'*50}")
+                    print(step_result)
+                    print(f"\n{'!'*50}\nStep {step_idx} completed\n{'!'*50}")
                 except asyncio.TimeoutError:
                     logger.error(f"Step {step_idx} timed out")
                     print(f"Step {step_idx} timed out, continuing with partial results")
@@ -198,7 +204,7 @@ class ReasonerAgent:
                     model_response = ModelResponse(response_text, processing_time)
                     self.response_cache[prompt] = model_response
                     self.circuit_breaker.record_success()
-
+                    print(f"\n RAW Model response: {response_text}")
                     return model_response
 
         except Exception as e:
@@ -380,7 +386,7 @@ class ReasonerAgent:
             Format your response as a clear, direct paragraph. Do not include any meta-text or thinking process.
             """
 
-            response = await self._get_model_response_with_timeout(prompt, timeout=45)
+            response = await self._get_model_response_with_timeout(prompt, timeout=200)
             if response.error:
                 return self._create_error_step("synthesis", response.error)
 
@@ -722,13 +728,15 @@ class ReasonerAgent:
             )
 
             if not synthesis:
-                return "Could not generate answer: No synthesis available"
+                logger.error("Synthesis not found in reasoning chain")
+                # Return last reasoning step as final answer
+                return reasoning_chain[-1].content
 
             # Check if revision is needed
             if reflection and self._needs_revision(reflection):
                 logger.info("Generating revised answer based on reflection")
 
-                revision_prompt = f"""Revise this answer based on reflection:
+                revision_prompt = f"""Revise this answer based on given information:
 
                 Original Query: {query}
                 Original Answer: {synthesis}
@@ -739,13 +747,9 @@ class ReasonerAgent:
                 2. Maintain accurate information
                 3. Improve clarity and completeness
 
-                Format your response as:
-                <think>
-                [Your revision process]
-                </think>
-
-                Revised Answer:
-                [Your improved answer]
+                Don't include any text showing that you this is the revised answer
+                or that it is based on the reflection.
+                Just provide the revised answer.
                 """
 
                 response = await self._get_model_response_with_timeout(
@@ -756,6 +760,7 @@ class ReasonerAgent:
                 else:
                     final_answer = synthesis  # Fallback to original synthesis
             else:
+                logger.info("Using original synthesis as final answer")
                 final_answer = synthesis
 
             logger.info(
@@ -848,6 +853,7 @@ class ReasonerAgent:
             # Remove thinking process if present
             response = re.sub(r"<think>.*?</think>", "", response, flags=re.DOTALL)
 
+            print(f"\nModel response: {response}")
             return response.strip()
 
         except Exception as e:
